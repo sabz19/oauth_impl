@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
+import * as jose from 'jose';
 import registeredClients from './registeredclients';
-import crypto from 'node:crypto';
+
 
 /**
  * Authorization middleware for clients
@@ -17,9 +18,8 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
     // check if redirect_uri is valid
     // Then generate code JWT token & match it with the redirect_uri
 
-    // if response_type = token do the following
     let unauthorized: Boolean = true;
-    
+
     if(req.method == 'GET'){
 
         const responseType = req.query.response_type;
@@ -27,22 +27,19 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
         const redirectUri = req.query.redirect_uri;
         const state = req.query.state;
     
-        let unauthorized: Boolean = true;
-    
         if(responseType?.toString() == 'code'){
             console.log('Response type is code');
+            // First invalidate an existing auth code for a request from the same client & user
+            
             if(clientId?.toString() in registeredClients){
                 console.log('Client ID is valid');
                 let redirectUriList = registeredClients[clientId.toString()]['redirectUris'];
                 if(redirectUriList?.includes(redirectUri)){
-                    const authGrantCode = generateAuthCodeGrant();
-                    updateAuthCodeGrant(authGrantCode, clientId.toString());
                     unauthorized = false;
                     next();
                 }
             }
         }
-
     }
 
     if(req.method == 'POST'){
@@ -51,16 +48,12 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
         const redirectUri = req.body.redirect_uri;
         const state = req.body.state;
     
-        let unauthorized: Boolean = true;
-    
-        if(responseType?.toString() == 'code'){
-            console.log('Response type is code');
+        if(responseType?.toString() == 'token'){
+            console.log('Response type is token');
             if(clientId?.toString() in registeredClients){
                 console.log('Client ID is valid');
                 let redirectUriList = registeredClients[clientId.toString()]['redirectUris'];
                 if(redirectUriList?.includes(redirectUri)){
-                    const authGrantCode = generateAuthCodeGrant();
-                    updateAuthCodeGrant(authGrantCode, clientId.toString());
                     unauthorized = false;
                     next();
                 }
@@ -71,16 +64,6 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
     if(unauthorized){
         res.status(401).send('Unauthorized');
     }
-}
-
-/**
- * 
- * @returns String
- */
-
-function generateAuthCodeGrant(): String{
-
-    return crypto.randomBytes(16).toString('hex');    
 }
 
 function updateAuthCodeGrant(authGrantCode: String, clientId: string): void {

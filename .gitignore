@@ -1,5 +1,5 @@
-/** Folders */
+# Folders
 node_modules
 
-/** Files */
+# Files 
 package-lock.json
