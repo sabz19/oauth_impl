@@ -2,10 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import * as jose from 'jose';
 import registeredClients from './registeredclients';
 
-
 /**
  * Authorization middleware for clients
- * 
+ * grant code flow - for auth code grant to be generated, the client must be registered & the user must be authenticated
+ * access token flow - 
+ * refresh token flow - 
  * @param req - request from client
  * @param res - response to send back to client
  * @param next - call next middleware or router
@@ -26,19 +27,20 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
         const clientId = req.query.client_id;
         const redirectUri = req.query.redirect_uri;
         const state = req.query.state;
-    
-        if(responseType?.toString() == 'code'){
-            console.log('Response type is code');
-            // First invalidate an existing auth code for a request from the same client & user
-            
-            if(clientId?.toString() in registeredClients){
-                console.log('Client ID is valid');
-                let redirectUriList = registeredClients[clientId.toString()]['redirectUris'];
-                if(redirectUriList?.includes(redirectUri)){
-                    unauthorized = false;
-                    next();
+        
+        switch(responseType?.toString()){
+            case 'code':  
+            if(userIsAuthenticated(req)){
+                if(clientId?.toString() in registeredClients){
+                    console.log('Client ID is valid');
+                    let redirectUriList = registeredClients[clientId.toString()]['redirectUris'];
+                    if(redirectUriList?.includes(redirectUri)){
+                        unauthorized = false;
+                        next();
+                    }
                 }
             }
+            //other cases such as implicit grant flow
         }
     }
 
@@ -69,6 +71,16 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
 function updateAuthCodeGrant(authGrantCode: String, clientId: string): void {
     console.log('Auth grant to update: ', authGrantCode);
     registeredClients[clientId]['authGrantCode'] = authGrantCode;
+}
+
+/**
+ * Method must verify the user's session information
+ * Identity providers can be different from resource owner
+ * @returns true if user is authenticated
+ */
+function userIsAuthenticated(req: Request): Boolean {
+    // Returning default true, but must be dependent on user session authentication
+    return true;
 }
 
 

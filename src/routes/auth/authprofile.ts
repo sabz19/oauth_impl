@@ -29,7 +29,7 @@ class AuthProfile{
         const authCodeVal: AuthGrantType = {
             'code': authCode,
             'accessToken': this.generateAccessToken(authCode),
-            'expiration': new Date(Date.now() + 60 * 10)
+            'expiration': new Date(Date.now() * 1000)
         };
 
         this.authGrantCodeList.push(authCodeVal);
