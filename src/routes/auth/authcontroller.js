@@ -38,6 +38,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 Object.defineProperty(exports, "__esModule", { value: true });
 var express_1 = require("express");
 var auth_1 = require("./auth");
+var authtypes_1 = require("./authtypes");
 var router = (0, express_1.Router)();
 router.get('/oauth/authorize', auth_1.authorize, function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
     var generatedCode;
@@ -53,14 +54,30 @@ router.get('/oauth/authorize', auth_1.authorize, function (req, res) { return __
     });
 }); });
 router.post('/oauth/token', auth_1.authorize, function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
-    var accessToken;
-    return __generator(this, function (_a) {
-        switch (_a.label) {
-            case 0: return [4 /*yield*/, (0, auth_1.retrieveAccessToken)(res.locals.profile, req.body.code)];
-            case 1:
-                accessToken = _a.sent();
-                console.log('access token retrieved = ' + accessToken);
-                res.status(200).send({ 'access_token': accessToken, 'token_type': 'Bearer' });
+    var accessToken, refreshToken, _a;
+    var _b, _c;
+    return __generator(this, function (_d) {
+        switch (_d.label) {
+            case 0:
+                console.log('grant type = ' + res.locals.grantType);
+                _a = res.locals.grantType;
+                switch (_a) {
+                    case 'authorization_code': return [3 /*break*/, 1];
+                    case 'refresh_token': return [3 /*break*/, 3];
+                }
+                return [3 /*break*/, 5];
+            case 1: return [4 /*yield*/, (0, auth_1.retrieveTokensWithGrant)(res.locals.profile, req.body.code)];
+            case 2:
+                _b = _d.sent(), accessToken = _b[0], refreshToken = _b[1];
+                console.log(accessToken);
+                console.log(refreshToken);
+                return [3 /*break*/, 5];
+            case 3: return [4 /*yield*/, (0, auth_1.generateAccessAndRefreshToken)(res.locals.profile, (0, auth_1.createJWTPayload)(res.locals.profile, authtypes_1.Token.Access), (0, auth_1.createJWTPayload)(res.locals.profile, authtypes_1.Token.Refresh))];
+            case 4:
+                _c = _d.sent(), accessToken = _c[0], refreshToken = _c[1];
+                return [3 /*break*/, 5];
+            case 5:
+                res.status(200).send({ 'access_token': accessToken, 'token_type': 'Bearer', 'refresh_token': refreshToken, 'expires_in': 3600 });
                 return [2 /*return*/];
         }
     });

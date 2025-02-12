@@ -14,12 +14,19 @@ var AuthProfile = /** @class */ (function () {
     }
     AuthProfile.prototype.addRedirectUri = function (redirectUri) {
         this.redirectUris.push(redirectUri);
+        return this;
     };
     AuthProfile.prototype.addAuthrantCode = function (authGrantCode) {
         this.authGrantCodeList.push(authGrantCode);
+        return this;
     };
     AuthProfile.prototype.addAccessToken = function (accessToken) {
         this.accessTokenList.push(accessToken);
+        return this;
+    };
+    AuthProfile.prototype.addRefreshToken = function (refreshToken) {
+        this.refreshTokenList.push(refreshToken);
+        return this;
     };
     return AuthProfile;
 }());

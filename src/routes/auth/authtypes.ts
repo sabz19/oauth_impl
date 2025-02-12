@@ -3,6 +3,7 @@ import * as jose from 'jose';
 type AuthGrantType = {
     'code': String,
     'accessToken': jose.SignJWT,
+    'refreshToken': jose.SignJWT,
     'expiration' : Date
 }
 
@@ -13,4 +14,10 @@ type JwtPayload = {
     'iat': Number,
     'exp': Number
 }
-export { JwtPayload, AuthGrantType };
+
+enum Token{
+    Access,
+    Refresh
+}
+
+export { JwtPayload, AuthGrantType, Token };

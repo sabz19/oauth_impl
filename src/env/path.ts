@@ -1,5 +1,6 @@
 const pathList = {
-     pKeyPath : 'keys/private_key_pkcs8.pem'
+    pKeyPath : 'keys/private_pkcs8.pem',
+    publicKeyPath : 'keys/public.pem',
 };
 
 export default pathList;

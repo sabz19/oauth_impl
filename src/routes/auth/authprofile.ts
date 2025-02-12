@@ -30,16 +30,24 @@ class AuthProfile{
         this.redirectUris = [];
     }
 
-    addRedirectUri(redirectUri: string): void{
+    addRedirectUri(redirectUri: string): this{
         this.redirectUris.push(redirectUri);
+        return this;
     }
 
-    addAuthrantCode(authGrantCode: AuthGrantType): void{
+    addAuthrantCode(authGrantCode: AuthGrantType): this{
         this.authGrantCodeList.push(authGrantCode);
+        return this;
     }
 
-    addAccessToken(accessToken: jose.SignJWT): void{
+    addAccessToken(accessToken: jose.SignJWT): this{
         this.accessTokenList.push(accessToken);
+        return this;
+    }
+
+    addRefreshToken(refreshToken: jose.SignJWT): this{
+        this.refreshTokenList.push(refreshToken);
+        return this;
     }
 }
 

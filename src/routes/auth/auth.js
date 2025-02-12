@@ -73,10 +73,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.authorize = authorize;
-exports.generateAccessToken = generateAccessToken;
+exports.generateAccessAndRefreshToken = generateAccessAndRefreshToken;
 exports.generateAuthCodeGrant = generateAuthCodeGrant;
 exports.validateAuthCode = validateAuthCode;
-exports.retrieveAccessToken = retrieveAccessToken;
+exports.retrieveTokensWithGrant = retrieveTokensWithGrant;
+exports.createJWTPayload = createJWTPayload;
+var authtypes_1 = require("./authtypes");
 var jose = __importStar(require("jose"));
 var node_crypto_1 = __importDefault(require("node:crypto"));
 var node_fs_1 = __importDefault(require("node:fs"));
@@ -92,70 +94,103 @@ var registeredclients_1 = __importDefault(require("./registeredclients"));
  * @param next - call next middleware or router
  */
 function authorize(req, res, next) {
-    // check request parameters for client_id & redirect_uri & response_type
-    // if response_type = code do the following
-    // check if client_id is valid 
-    // check if redirect_uri is valid
-    // Then generate code JWT token & match it with the redirect_uri
-    var _a, _b;
-    var unauthorized = true;
-    if (req.method == 'GET') {
-        var responseType = req.query.response_type;
-        var clientId = req.query.client_id;
-        var redirectUri = req.query.redirect_uri;
-        var state = req.query.state;
-        switch (responseType === null || responseType === void 0 ? void 0 : responseType.toString()) {
-            case 'code':
-                if (userIsAuthenticated(req)) {
-                    for (var _i = 0, registeredClients_1 = registeredclients_1.default; _i < registeredClients_1.length; _i++) {
-                        var profile = registeredClients_1[_i];
+    return __awaiter(this, void 0, void 0, function () {
+        var unauthorized, responseType, clientId, redirectUri, state, _i, registeredClients_1, profile, grantType, clientId, redirectUri, state, code, refreshToken, _a, _b, registeredClients_2, profile, _c, registeredClients_3, profile;
+        var _d, _e, _f;
+        return __generator(this, function (_g) {
+            switch (_g.label) {
+                case 0:
+                    unauthorized = true;
+                    if (req.method == 'GET') {
+                        responseType = req.query.response_type;
+                        clientId = req.query.client_id;
+                        redirectUri = req.query.redirect_uri;
+                        state = req.query.state;
+                        switch (responseType === null || responseType === void 0 ? void 0 : responseType.toString()) {
+                            case 'code':
+                                if (userIsAuthenticated(req)) {
+                                    for (_i = 0, registeredClients_1 = registeredclients_1.default; _i < registeredClients_1.length; _i++) {
+                                        profile = registeredClients_1[_i];
+                                        if (profile['clientId'] == (clientId === null || clientId === void 0 ? void 0 : clientId.toString())
+                                            && ((_d = profile['redirectUris']) === null || _d === void 0 ? void 0 : _d.includes(redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString()))) {
+                                            {
+                                                unauthorized = false;
+                                                res.locals.profile = profile;
+                                                next();
+                                            }
+                                        }
+                                    }
+                                }
+                                break;
+                            //other cases such as implicit grant flow
+                            default: console.log('Invalid Response Type');
+                        }
+                    }
+                    if (!(req.method == 'POST')) return [3 /*break*/, 8];
+                    grantType = req.body.grant_type;
+                    clientId = req.body.client_id;
+                    redirectUri = req.body.redirect_uri;
+                    state = req.body.state;
+                    code = req.body.code;
+                    refreshToken = req.body.refresh_token;
+                    console.log('grant type = ' + grantType);
+                    _a = grantType === null || grantType === void 0 ? void 0 : grantType.toString();
+                    switch (_a) {
+                        case 'authorization_code': return [3 /*break*/, 1];
+                        case 'refresh_token': return [3 /*break*/, 2];
+                    }
+                    return [3 /*break*/, 7];
+                case 1:
+                    for (_b = 0, registeredClients_2 = registeredclients_1.default; _b < registeredClients_2.length; _b++) {
+                        profile = registeredClients_2[_b];
                         if (profile['clientId'] == (clientId === null || clientId === void 0 ? void 0 : clientId.toString())
-                            && ((_a = profile['redirectUris']) === null || _a === void 0 ? void 0 : _a.includes(redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString()))) {
+                            && ((_e = profile['redirectUris']) === null || _e === void 0 ? void 0 : _e.includes(redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString()))) {
                             {
-                                unauthorized = false;
-                                res.locals.profile = profile;
-                                next();
+                                console.log('Validating auth code...');
+                                if (validateAuthCode(profile, code)) {
+                                    console.log('Auth code is valid, sending back token');
+                                    unauthorized = false;
+                                    res.locals.profile = profile;
+                                    res.locals.grantType = grantType.toString();
+                                    next();
+                                }
                             }
                         }
                     }
-                }
-                break;
-            //other cases such as implicit grant flow
-            default: console.log('Invalid Response Type');
-        }
-    }
-    if (req.method == 'POST') {
-        var grantType = req.body.grant_type;
-        var clientId = req.body.client_id;
-        var redirectUri = req.body.redirect_uri;
-        var state = req.body.state;
-        var code = req.body.code;
-        switch (grantType === null || grantType === void 0 ? void 0 : grantType.toString()) {
-            case 'authorization_code':
-                for (var _c = 0, registeredClients_2 = registeredclients_1.default; _c < registeredClients_2.length; _c++) {
-                    var profile = registeredClients_2[_c];
-                    if (profile['clientId'] == (clientId === null || clientId === void 0 ? void 0 : clientId.toString())
-                        && ((_b = profile['redirectUris']) === null || _b === void 0 ? void 0 : _b.includes(redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString()))) {
-                        {
-                            console.log('Validating auth code...');
-                            if (validateAuthCode(profile, code)) {
-                                console.log('Auth code is valid, sending back token');
-                                unauthorized = false;
-                                res.locals.profile = profile;
-                                next();
-                            }
-                        }
+                    return [3 /*break*/, 8];
+                case 2:
+                    _c = 0, registeredClients_3 = registeredclients_1.default;
+                    _g.label = 3;
+                case 3:
+                    if (!(_c < registeredClients_3.length)) return [3 /*break*/, 6];
+                    profile = registeredClients_3[_c];
+                    if (!(profile['clientId'] == (clientId === null || clientId === void 0 ? void 0 : clientId.toString())
+                        && ((_f = profile['redirectUris']) === null || _f === void 0 ? void 0 : _f.includes(redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString())))) return [3 /*break*/, 5];
+                    console.log('Validating refresh token...');
+                    return [4 /*yield*/, validateRefreshToken(profile, refreshToken === null || refreshToken === void 0 ? void 0 : refreshToken.toString())];
+                case 4:
+                    if (_g.sent()) {
+                        unauthorized = false;
+                        res.locals.grantType = grantType.toString();
+                        res.locals.profile = profile;
+                        next();
                     }
-                }
-                break;
-            case 'refresh_token':
-                break;
-            default: console.log('Invalid Grant Type');
-        }
-    }
-    if (unauthorized) {
-        res.status(401).send('Unauthorized');
-    }
+                    _g.label = 5;
+                case 5:
+                    _c++;
+                    return [3 /*break*/, 3];
+                case 6: return [3 /*break*/, 8];
+                case 7:
+                    console.log('Invalid Grant Type');
+                    _g.label = 8;
+                case 8:
+                    if (unauthorized) {
+                        res.status(401).send('Unauthorized');
+                    }
+                    return [2 /*return*/];
+            }
+        });
+    });
 }
 /**
  * Method must verify the user's session information
@@ -173,28 +208,22 @@ function userIsAuthenticated(req) {
  */
 function generateAuthCodeGrant(profile) {
     return __awaiter(this, void 0, void 0, function () {
-        var authCode, payload, authCodeObj, _a;
-        var _b;
-        return __generator(this, function (_c) {
-            switch (_c.label) {
+        var authCode, accessTokenPayload, refreshTokenPayload, _a, accessToken, refreshToken, authCodeObj;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
                 case 0:
                     authCode = node_crypto_1.default.randomBytes(16).toString('hex');
-                    payload = {
-                        'sub': profile['clientId'],
-                        'aud': '',
-                        'exp': Date.now() + 24 * 1000 * 60 * 60,
-                        'iat': Date.now(),
-                        'iss': ''
-                    };
-                    _b = {
-                        'code': authCode
-                    };
-                    _a = 'accessToken';
-                    return [4 /*yield*/, generateAccessToken(profile, payload)];
+                    accessTokenPayload = createJWTPayload(profile, authtypes_1.Token.Access);
+                    refreshTokenPayload = createJWTPayload(profile, authtypes_1.Token.Refresh);
+                    return [4 /*yield*/, generateAccessAndRefreshToken(profile, accessTokenPayload, refreshTokenPayload)];
                 case 1:
-                    authCodeObj = (_b[_a] = _c.sent(),
-                        _b['expiration'] = new Date(Date.now() + 30 * 1000),
-                        _b);
+                    _a = _b.sent(), accessToken = _a[0], refreshToken = _a[1];
+                    authCodeObj = {
+                        'code': authCode,
+                        'accessToken': accessToken,
+                        'refreshToken': refreshToken,
+                        'expiration': new Date(Date.now() + 30 * 1000)
+                    };
                     profile.addAuthrantCode(authCodeObj);
                     return [2 /*return*/, authCode];
             }
@@ -202,46 +231,56 @@ function generateAuthCodeGrant(profile) {
     });
 }
 /**
- * Generate a JWT access token
+ * Generate both JWT access token & JWT refresh token
  * @param authCodeGrant string
  * @returns a JWT access token
  */
-function generateAccessToken(profile, payload) {
+function generateAccessAndRefreshToken(profile, accessTokenPayload, refreshTokenPayload) {
     return __awaiter(this, void 0, void 0, function () {
-        var jwt, privateKey, key, error_1;
+        var accessToken, refreshToken, privateKey, key, error_1;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
-                    jwt = null;
+                    accessToken = null;
+                    refreshToken = null;
                     _a.label = 1;
                 case 1:
-                    _a.trys.push([1, 5, , 6]);
+                    _a.trys.push([1, 6, , 7]);
                     return [4 /*yield*/, node_fs_1.default.promises.readFile(path_1.default.pKeyPath, 'utf8')];
                 case 2:
                     privateKey = _a.sent();
                     return [4 /*yield*/, jose.importPKCS8(privateKey, 'RS256')];
                 case 3:
                     key = _a.sent();
-                    return [4 /*yield*/, new jose.SignJWT({ payload: payload })
+                    return [4 /*yield*/, new jose.SignJWT({ accessTokenPayload: accessTokenPayload })
                             .setProtectedHeader({ alg: 'RS256' })
                             .setIssuedAt()
-                            .setExpirationTime('12h')
+                            .setExpirationTime('1h')
                             .sign(key)];
                 case 4:
-                    jwt = _a.sent();
-                    profile.addAccessToken(jwt);
-                    return [3 /*break*/, 6];
+                    accessToken = _a.sent();
+                    return [4 /*yield*/, new jose.SignJWT({ refreshTokenPayload: refreshTokenPayload })
+                            .setProtectedHeader({ alg: 'RS256' })
+                            .setIssuedAt()
+                            .setExpirationTime('1d')
+                            .sign(key)];
                 case 5:
+                    refreshToken = _a.sent();
+                    profile.addAccessToken(accessToken)
+                        .addRefreshToken(refreshToken);
+                    return [3 /*break*/, 7];
+                case 6:
                     error_1 = _a.sent();
                     console.error('Error generating JWT token:', error_1);
                     throw error_1;
-                case 6: return [2 /*return*/, jwt];
+                case 7: return [2 /*return*/, [accessToken, refreshToken]];
             }
         });
     });
 }
 /**
  * Validate if a given request from a user is a valid auth code grant
+ * If auth code has expired, remove it from the list
  * @param authCode
  * @returns
  */
@@ -261,14 +300,63 @@ function validateAuthCode(profile, authCode) {
     console.log('Auth code invalid');
     return false;
 }
-function retrieveAccessToken(profile, authCode) {
-    for (var _i = 0, _a = profile['authGrantCodeList']; _i < _a.length; _i++) {
-        var code = _a[_i];
-        if (code['code'] == authCode) {
-            return code['accessToken'];
-        }
-    }
-    return null;
+/**
+ * Refresh token validation should be three steps
+ * 1. Verify with the public key
+ * 2. Check if it exists in the list of refresh tokens issued
+ * 3. Check if it is expired
+ * @param profile
+ * @param refreshToken
+ * @returns
+ */
+function validateRefreshToken(profile, refreshToken) {
+    return __awaiter(this, void 0, void 0, function () {
+        var payload, _a, _b, _c, expTime, _i, _d, token, error_2;
+        return __generator(this, function (_e) {
+            switch (_e.label) {
+                case 0:
+                    _e.trys.push([0, 3, , 4]);
+                    _b = (_a = jose).jwtVerify;
+                    _c = [refreshToken];
+                    return [4 /*yield*/, loadRSAPublicKey()];
+                case 1: return [4 /*yield*/, _b.apply(_a, _c.concat([_e.sent()]))];
+                case 2:
+                    payload = (_e.sent());
+                    expTime = ((JSON.parse(JSON.stringify(payload))['payload']['refreshTokenPayload']['exp']));
+                    console.log(Number(Date.now()));
+                    if (expTime > Number(Date.now())) {
+                        for (_i = 0, _d = profile['refreshTokenList']; _i < _d.length; _i++) {
+                            token = _d[_i];
+                            if (token.toString() == refreshToken) {
+                                console.log(['Refresh token is valid!']);
+                                return [2 /*return*/, true];
+                            }
+                        }
+                    }
+                    return [3 /*break*/, 4];
+                case 3:
+                    error_2 = _e.sent();
+                    console.error('Error validating refresh token:', error_2);
+                    return [3 /*break*/, 4];
+                case 4: return [2 /*return*/, false];
+            }
+        });
+    });
+}
+function retrieveTokensWithGrant(profile, authCode) {
+    return __awaiter(this, void 0, void 0, function () {
+        var _i, _a, code;
+        return __generator(this, function (_b) {
+            for (_i = 0, _a = profile['authGrantCodeList']; _i < _a.length; _i++) {
+                code = _a[_i];
+                console.log('code = ' + code);
+                if (code['code'] == authCode) {
+                    return [2 /*return*/, [code['accessToken'], code['refreshToken']]];
+                }
+            }
+            return [2 /*return*/, null];
+        });
+    });
 }
 /**
  * Assuming user tries to access resources, this method needs to be called to validate the access token & expiration
@@ -277,4 +365,37 @@ function retrieveAccessToken(profile, authCode) {
  */
 function validateAccessToken(accessToken) {
     return false;
+}
+function loadRSAPublicKey() {
+    return __awaiter(this, void 0, void 0, function () {
+        var publicPem, error_3;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    _a.trys.push([0, 3, , 4]);
+                    return [4 /*yield*/, node_fs_1.default.promises.readFile(path_1.default.publicKeyPath, 'utf8')];
+                case 1:
+                    publicPem = _a.sent();
+                    return [4 /*yield*/, jose.importSPKI(publicPem, 'RS256')];
+                case 2: return [2 /*return*/, _a.sent()];
+                case 3:
+                    error_3 = _a.sent();
+                    console.error('Error loading public key:', error_3);
+                    throw error_3;
+                case 4: return [2 /*return*/];
+            }
+        });
+    });
+}
+function createJWTPayload(profile, tokenType) {
+    var accessTokenExpiry = Date.now() + 1000 * 60 * 60;
+    var refreshTokenExpiry = Date.now() + 1000 * 60 * 60 * 24;
+    var payload = {
+        'sub': profile['clientId'],
+        'aud': '',
+        'iss': '',
+        'iat': Date.now(),
+        'exp': tokenType == authtypes_1.Token.Access ? accessTokenExpiry : refreshTokenExpiry
+    };
+    return payload;
 }

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { AuthGrantType, JwtPayload } from './authtypes';
+import { AuthGrantType, JwtPayload, Token} from './authtypes';
 import * as jose from 'jose';
 import AuthProfile from './authprofile';
 import crypto from 'node:crypto';
@@ -16,7 +16,7 @@ import registeredClients from './registeredclients';
  * @param res - response to send back to client
  * @param next - call next middleware or router
  */
-function authorize(req: Request, res: Response, next: NextFunction): void{
+async function authorize(req: Request, res: Response, next: NextFunction): Promise<void>{
 
     // check request parameters for client_id & redirect_uri & response_type
     // if response_type = code do the following
@@ -59,7 +59,8 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
         const redirectUri = req.body.redirect_uri;
         const state = req.body.state;
         const code = req.body.code;
-    
+        const refreshToken = req.body.refresh_token;
+        console.log('grant type = ' + grantType);
         switch(grantType?.toString()){
             case 'authorization_code':
                 for(const profile of registeredClients){
@@ -70,6 +71,7 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
                                 console.log('Auth code is valid, sending back token');
                                 unauthorized = false;
                                 res.locals.profile = profile;
+                                res.locals.grantType = grantType.toString();
                                 next();
                             }
                         }
@@ -78,11 +80,25 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
             break;
 
             case 'refresh_token':
+                for(const profile of registeredClients){
+                    if(profile['clientId'] == clientId?.toString() 
+                        && profile['redirectUris']?.includes(redirectUri?.toString())){{
+                            console.log('Validating refresh token...');
+                            if(await validateRefreshToken(profile, refreshToken?.toString())){
+                                unauthorized = false;
+                                res.locals.grantType = grantType.toString();
+                                res.locals.profile = profile;
+                                next();
+                            }
+                        }
+                    }
+                }
             break;
             
             default: console.log('Invalid Grant Type');
         }       
     }
+
 
     if(unauthorized){
         res.status(401).send('Unauthorized');
@@ -108,16 +124,16 @@ function userIsAuthenticated(req: Request): Boolean {
 async function generateAuthCodeGrant(profile: AuthProfile): Promise<string>{
 
     const authCode = crypto.randomBytes(16).toString('hex');   
-    const payload: JwtPayload = {
-        'sub': profile['clientId'],
-        'aud': '',
-        'exp': Date.now() + 24 * 1000 * 60 * 60,
-        'iat': Date.now(),
-        'iss': ''
-    } 
+    const accessTokenPayload = createJWTPayload(profile, Token.Access);
+    const refreshTokenPayload = createJWTPayload(profile, Token.Refresh);
+
+    const [accessToken,refreshToken] = await generateAccessAndRefreshToken(profile, accessTokenPayload, refreshTokenPayload);
+
+    // Expiration time for auth code set to 30 seconds
     const authCodeObj: AuthGrantType = {
         'code': authCode,
-        'accessToken': await generateAccessToken(profile, payload),
+        'accessToken': accessToken,
+        'refreshToken': refreshToken,
         'expiration': new Date(Date.now() + 30 * 1000)
     };
 
@@ -125,36 +141,46 @@ async function generateAuthCodeGrant(profile: AuthProfile): Promise<string>{
     return authCode;
     }
 /**
- * Generate a JWT access token 
+ * Generate both JWT access token & JWT refresh token
  * @param authCodeGrant string
  * @returns a JWT access token
  */
-async function generateAccessToken(profile: AuthProfile, payload: JwtPayload): Promise<jose.SignJWT>{
+async function generateAccessAndRefreshToken(profile: AuthProfile, accessTokenPayload: JwtPayload, refreshTokenPayload: JwtPayload): Promise<[jose.SignJWT, jose.SignJWT]>{
         
     // Check if grant code is valid & within expiration 
     // Generate a JWT token
 
-    let jwt = null;
+    let accessToken = null;
+    let refreshToken = null;
+
     try{
         const privateKey = await fs.promises.readFile(pathList.pKeyPath, 'utf8');
         const key = await jose.importPKCS8(privateKey, 'RS256');
-        jwt = await new jose.SignJWT({payload})
+        accessToken = await new jose.SignJWT({accessTokenPayload})
         .setProtectedHeader({ alg: 'RS256' })
         .setIssuedAt()
-        .setExpirationTime('12h')
+        .setExpirationTime('1h')
         .sign(key);
 
-        profile.addAccessToken(jwt);
+        refreshToken = await new jose.SignJWT({refreshTokenPayload})
+        .setProtectedHeader({ alg: 'RS256' })
+        .setIssuedAt()
+        .setExpirationTime('1d')
+        .sign(key);
+
+        profile.addAccessToken(accessToken)
+        .addRefreshToken(refreshToken);
         
     }catch(error){
         console.error('Error generating JWT token:', error);
         throw error;
     }
 
-    return jwt;
+    return [accessToken, refreshToken];
 }
 /**
  * Validate if a given request from a user is a valid auth code grant
+ * If auth code has expired, remove it from the list
  * @param authCode 
  * @returns 
  */
@@ -174,10 +200,40 @@ function validateAuthCode(profile: AuthProfile, authCode: string): Boolean {
     return false;
 }
 
-function retrieveAccessToken(profile: AuthProfile, authCode: string): jose.SignJWT {
+/**
+ * Refresh token validation should be three steps 
+ * 1. Verify with the public key 
+ * 2. Check if it exists in the list of refresh tokens issued 
+ * 3. Check if it is expired
+ * @param profile 
+ * @param refreshToken 
+ * @returns 
+ */
+async function validateRefreshToken(profile: AuthProfile, refreshToken: string): Promise<Boolean> {
+    try{
+        const payload: jose.JWTVerifyResult<JwtPayload> = (await jose.jwtVerify(refreshToken, await loadRSAPublicKey()));
+        const expTime = ((JSON.parse(JSON.stringify(payload))['payload']['refreshTokenPayload']['exp']));
+        console.log( Number(Date.now()));
+        if(expTime > Number(Date.now())){
+            for(const token of profile['refreshTokenList']){
+                if(token.toString() == refreshToken){
+                    console.log(['Refresh token is valid!']);
+                    return true;
+                }
+            }
+        }
+    }catch(error){
+        console.error('Error validating refresh token:', error);
+    }
+
+    return false;
+}
+
+async function retrieveTokensWithGrant(profile: AuthProfile, authCode: string): Promise<[jose.SignJWT, jose.SignJWT] | null> {
     for(const code of profile['authGrantCodeList']){
+        console.log('code = ' + code);
         if(code['code'] == authCode){
-            return code['accessToken'];
+            return [code['accessToken'], code['refreshToken']];
         }
     }
     return null;
@@ -192,5 +248,33 @@ function validateAccessToken(accessToken: jose.SignJWT): Boolean {
     return false;
 }
 
+async function loadRSAPublicKey(): Promise<jose.KeyLike>{
+    try{
+        const publicPem = await fs.promises.readFile(pathList.publicKeyPath, 'utf8');
+        return await jose.importSPKI(publicPem, 'RS256');
+    }catch(error){
+        console.error('Error loading public key:', error);
+        throw error;
+    }
 
-export { authorize, generateAccessToken, generateAuthCodeGrant, validateAuthCode, retrieveAccessToken };
+}
+
+function createJWTPayload(profile: AuthProfile, tokenType: Token): JwtPayload{
+    
+    const accessTokenExpiry = Date.now() + 1000 * 60 * 60;
+    const refreshTokenExpiry = Date.now() + 1000 * 60 * 60 * 24;
+
+    const payload: JwtPayload = {
+        'sub': profile['clientId'],
+        'aud': '',
+        'iss': '',
+        'iat': Date.now(),
+        'exp': tokenType == Token.Access? accessTokenExpiry : refreshTokenExpiry
+    };
+    
+    return payload;
+
+}
+
+
+export { authorize, generateAccessAndRefreshToken, generateAuthCodeGrant, validateAuthCode, retrieveTokensWithGrant, createJWTPayload };
