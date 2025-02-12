@@ -1,12 +1,16 @@
+import * as jose from 'jose';
+
 type AuthGrantType = {
     'code': String,
-    'accessToken': String,
+    'accessToken': jose.SignJWT,
     'expiration' : Date
 }
 
-type AuthAccessTokenType = {
-    'token': String
+type JwtPayload = {
+    'sub': String,
+    'aud': String,
+    'iss': String,
+    'iat': Number,
+    'exp': Number
 }
-
-
-export { AuthGrantType, AuthAccessTokenType };
+export { JwtPayload, AuthGrantType };

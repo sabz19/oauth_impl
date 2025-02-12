@@ -1,6 +1,11 @@
-import { Request, Response, NextFunction } from 'express';
 import * as jose from 'jose';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import pathList from '../../env/path';
 import registeredClients from './registeredclients';
+import AuthProfile from './authprofile';
+import { Request, Response, NextFunction } from 'express';
+import { AuthGrantType, JwtPayload } from './authtypes';
 
 /**
  * Authorization middleware for clients
@@ -22,7 +27,6 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
     let unauthorized: Boolean = true;
 
     if(req.method == 'GET'){
-
         const responseType = req.query.response_type;
         const clientId = req.query.client_id;
         const redirectUri = req.query.redirect_uri;
@@ -31,12 +35,13 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
         switch(responseType?.toString()){
             case 'code':  
             if(userIsAuthenticated(req)){
-                if(clientId?.toString() in registeredClients){
-                    console.log('Client ID is valid');
-                    let redirectUriList = registeredClients[clientId.toString()]['redirectUris'];
-                    if(redirectUriList?.includes(redirectUri)){
-                        unauthorized = false;
-                        next();
+                for(const profile of registeredClients){
+                    if(profile['clientId'] == clientId?.toString() 
+                        && profile['redirectUris']?.includes(redirectUri?.toString())){{
+                            unauthorized = false;
+                            res.locals.profile = profile;
+                            next();
+                        }
                     }
                 }
             }
@@ -68,20 +73,87 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
     }
 }
 
-function updateAuthCodeGrant(authGrantCode: String, clientId: string): void {
-    console.log('Auth grant to update: ', authGrantCode);
-    registeredClients[clientId]['authGrantCode'] = authGrantCode;
-}
-
 /**
  * Method must verify the user's session information
  * Identity providers can be different from resource owner
  * @returns true if user is authenticated
  */
 function userIsAuthenticated(req: Request): Boolean {
-    // Returning default true, but must be dependent on user session authentication
+    // Returning default true for this demo, but must be dependent on user session authentication
     return true;
 }
 
+/**
+ * Generate a one time auth code that is valid for 30 seconds
+ * Store code -> access token mapping to retrieve the access token for future requests
+ * @returns auth code
+ */
 
-export default authorize;
+async function generateAuthCodeGrant(profile: AuthProfile): Promise<string>{
+
+    const authCode = crypto.randomBytes(16).toString('hex');   
+    const payload: JwtPayload = {
+        'sub': profile['clientId'],
+        'aud': '',
+        'exp': Date.now() + 24 * 1000 * 60 * 60,
+        'iat': Date.now(),
+        'iss': ''
+    } 
+    const authCodeObj: AuthGrantType = {
+        'code': authCode,
+        'accessToken': await generateAccessToken(profile, payload),
+        'expiration': new Date(Date.now() + 30 * 1000)
+    };
+
+    profile.addAuthrantCode(authCodeObj);
+    return authCode;
+    }
+/**
+ * Generate a JWT access token 
+ * @param authCodeGrant string
+ * @returns a JWT access token
+ */
+async function generateAccessToken(profile: AuthProfile, payload: JwtPayload): Promise<jose.SignJWT>{
+        
+    // Check if grant code is valid & within expiration 
+    // Generate a JWT token
+
+    let jwt = null;
+    try{
+        const privateKey = await fs.promises.readFile(pathList.pKeyPath, 'utf8');
+        const key = await jose.importPKCS8(privateKey, 'RS256');
+        jwt = await new jose.SignJWT({payload})
+        .setProtectedHeader({ alg: 'RS256' })
+        .setIssuedAt()
+        .setExpirationTime('12h')
+        .sign(key);
+
+        profile.addAccessToken(jwt);
+        
+    }catch(error){
+        console.error('Error generating JWT token:', error);
+        throw error;
+    }
+
+    return jwt;
+}
+/**
+ * Validate if a given request from a user is a valid auth code grant
+ * @param authCode 
+ * @returns 
+ */
+function validateAuthCode(authCode: string): Boolean {
+    return false;
+}
+
+/**
+ * 
+ * @param accessToken JWT
+ * @returns Boolean
+ */
+function validateAccessToken(accessToken: jose.SignJWT): Boolean {
+    return false;
+}
+
+
+export { authorize, generateAccessToken, generateAuthCodeGrant, validateAuthCode };
