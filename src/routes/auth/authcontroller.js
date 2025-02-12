@@ -47,13 +47,22 @@ router.get('/oauth/authorize', auth_1.authorize, function (req, res) { return __
             case 1:
                 generatedCode = _a.sent();
                 console.log(generatedCode);
-                console.log('state = ' + req.query.state);
                 res.redirect(req.query.redirect_uri + '?code=' + generatedCode + '&state=' + req.query.state);
                 return [2 /*return*/];
         }
     });
 }); });
-router.post('/oauth/token', auth_1.authorize, function (req, res) {
-    res.send('Token end point hit!');
-});
+router.post('/oauth/token', auth_1.authorize, function (req, res) { return __awaiter(void 0, void 0, void 0, function () {
+    var accessToken;
+    return __generator(this, function (_a) {
+        switch (_a.label) {
+            case 0: return [4 /*yield*/, (0, auth_1.retrieveAccessToken)(res.locals.profile, req.body.code)];
+            case 1:
+                accessToken = _a.sent();
+                console.log('access token retrieved = ' + accessToken);
+                res.status(200).send({ 'access_token': accessToken, 'token_type': 'Bearer' });
+                return [2 /*return*/];
+        }
+    });
+}); });
 exports.default = router;

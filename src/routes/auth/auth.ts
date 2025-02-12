@@ -1,11 +1,11 @@
+import { Request, Response, NextFunction } from 'express';
+import { AuthGrantType, JwtPayload } from './authtypes';
 import * as jose from 'jose';
+import AuthProfile from './authprofile';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import pathList from '../../env/path';
 import registeredClients from './registeredclients';
-import AuthProfile from './authprofile';
-import { Request, Response, NextFunction } from 'express';
-import { AuthGrantType, JwtPayload } from './authtypes';
 
 /**
  * Authorization middleware for clients
@@ -45,27 +45,43 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
                     }
                 }
             }
+            break;
             //other cases such as implicit grant flow
+
+            default: console.log('Invalid Response Type');
         }
     }
 
     if(req.method == 'POST'){
-        const responseType = req.body.response_type;
+        
+        const grantType = req.body.grant_type;
         const clientId = req.body.client_id;
         const redirectUri = req.body.redirect_uri;
         const state = req.body.state;
+        const code = req.body.code;
     
-        if(responseType?.toString() == 'token'){
-            console.log('Response type is token');
-            if(clientId?.toString() in registeredClients){
-                console.log('Client ID is valid');
-                let redirectUriList = registeredClients[clientId.toString()]['redirectUris'];
-                if(redirectUriList?.includes(redirectUri)){
-                    unauthorized = false;
-                    next();
+        switch(grantType?.toString()){
+            case 'authorization_code':
+                for(const profile of registeredClients){
+                    if(profile['clientId'] == clientId?.toString() 
+                        && profile['redirectUris']?.includes(redirectUri?.toString())){{
+                    console.log('Validating auth code...');
+                            if(validateAuthCode(profile, code)){
+                                console.log('Auth code is valid, sending back token');
+                                unauthorized = false;
+                                res.locals.profile = profile;
+                                next();
+                            }
+                        }
+                    }
                 }
-            }
-        }
+            break;
+
+            case 'refresh_token':
+            break;
+            
+            default: console.log('Invalid Grant Type');
+        }       
     }
 
     if(unauthorized){
@@ -79,7 +95,7 @@ function authorize(req: Request, res: Response, next: NextFunction): void{
  * @returns true if user is authenticated
  */
 function userIsAuthenticated(req: Request): Boolean {
-    // Returning default true for this demo, but must be dependent on user session authentication
+    // Returning default true for this demo, but must be based on real user session authentication
     return true;
 }
 
@@ -142,12 +158,33 @@ async function generateAccessToken(profile: AuthProfile, payload: JwtPayload): P
  * @param authCode 
  * @returns 
  */
-function validateAuthCode(authCode: string): Boolean {
+function validateAuthCode(profile: AuthProfile, authCode: string): Boolean {
+    for(const code of profile['authGrantCodeList']){
+        if(code['code'] == authCode && code['expiration'] > new Date()){
+            return true;
+        }
+        // Invalidate the code if it is expired
+        if(code['code'] == authCode && code['expiration'] < new Date()){
+            profile['authGrantCodeList'] = profile['authGrantCodeList'].filter((code: AuthGrantType) => code['code'] != authCode);
+            console.log('Token validity is expired');
+            return false;
+        }
+    }
+    console.log('Auth code invalid');
     return false;
 }
 
+function retrieveAccessToken(profile: AuthProfile, authCode: string): jose.SignJWT {
+    for(const code of profile['authGrantCodeList']){
+        if(code['code'] == authCode){
+            return code['accessToken'];
+        }
+    }
+    return null;
+}
+
 /**
- * 
+ * Assuming user tries to access resources, this method needs to be called to validate the access token & expiration
  * @param accessToken JWT
  * @returns Boolean
  */
@@ -156,4 +193,4 @@ function validateAccessToken(accessToken: jose.SignJWT): Boolean {
 }
 
 
-export { authorize, generateAccessToken, generateAuthCodeGrant, validateAuthCode };
+export { authorize, generateAccessToken, generateAuthCodeGrant, validateAuthCode, retrieveAccessToken };

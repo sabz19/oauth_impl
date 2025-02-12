@@ -76,6 +76,7 @@ exports.authorize = authorize;
 exports.generateAccessToken = generateAccessToken;
 exports.generateAuthCodeGrant = generateAuthCodeGrant;
 exports.validateAuthCode = validateAuthCode;
+exports.retrieveAccessToken = retrieveAccessToken;
 var jose = __importStar(require("jose"));
 var node_crypto_1 = __importDefault(require("node:crypto"));
 var node_fs_1 = __importDefault(require("node:fs"));
@@ -96,7 +97,7 @@ function authorize(req, res, next) {
     // check if client_id is valid 
     // check if redirect_uri is valid
     // Then generate code JWT token & match it with the redirect_uri
-    var _a;
+    var _a, _b;
     var unauthorized = true;
     if (req.method == 'GET') {
         var responseType = req.query.response_type;
@@ -118,24 +119,38 @@ function authorize(req, res, next) {
                         }
                     }
                 }
+                break;
             //other cases such as implicit grant flow
+            default: console.log('Invalid Response Type');
         }
     }
     if (req.method == 'POST') {
-        var responseType = req.body.response_type;
+        var grantType = req.body.grant_type;
         var clientId = req.body.client_id;
         var redirectUri = req.body.redirect_uri;
         var state = req.body.state;
-        if ((responseType === null || responseType === void 0 ? void 0 : responseType.toString()) == 'token') {
-            console.log('Response type is token');
-            if ((clientId === null || clientId === void 0 ? void 0 : clientId.toString()) in registeredclients_1.default) {
-                console.log('Client ID is valid');
-                var redirectUriList = registeredclients_1.default[clientId.toString()]['redirectUris'];
-                if (redirectUriList === null || redirectUriList === void 0 ? void 0 : redirectUriList.includes(redirectUri)) {
-                    unauthorized = false;
-                    next();
+        var code = req.body.code;
+        switch (grantType === null || grantType === void 0 ? void 0 : grantType.toString()) {
+            case 'authorization_code':
+                for (var _c = 0, registeredClients_2 = registeredclients_1.default; _c < registeredClients_2.length; _c++) {
+                    var profile = registeredClients_2[_c];
+                    if (profile['clientId'] == (clientId === null || clientId === void 0 ? void 0 : clientId.toString())
+                        && ((_b = profile['redirectUris']) === null || _b === void 0 ? void 0 : _b.includes(redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString()))) {
+                        {
+                            console.log('Validating auth code...');
+                            if (validateAuthCode(profile, code)) {
+                                console.log('Auth code is valid, sending back token');
+                                unauthorized = false;
+                                res.locals.profile = profile;
+                                next();
+                            }
+                        }
+                    }
                 }
-            }
+                break;
+            case 'refresh_token':
+                break;
+            default: console.log('Invalid Grant Type');
         }
     }
     if (unauthorized) {
@@ -148,7 +163,7 @@ function authorize(req, res, next) {
  * @returns true if user is authenticated
  */
 function userIsAuthenticated(req) {
-    // Returning default true for this demo, but must be dependent on user session authentication
+    // Returning default true for this demo, but must be based on real user session authentication
     return true;
 }
 /**
@@ -230,11 +245,33 @@ function generateAccessToken(profile, payload) {
  * @param authCode
  * @returns
  */
-function validateAuthCode(authCode) {
+function validateAuthCode(profile, authCode) {
+    for (var _i = 0, _a = profile['authGrantCodeList']; _i < _a.length; _i++) {
+        var code = _a[_i];
+        if (code['code'] == authCode && code['expiration'] > new Date()) {
+            return true;
+        }
+        // Invalidate the code if it is expired
+        if (code['code'] == authCode && code['expiration'] < new Date()) {
+            profile['authGrantCodeList'] = profile['authGrantCodeList'].filter(function (code) { return code['code'] != authCode; });
+            console.log('Token validity is expired');
+            return false;
+        }
+    }
+    console.log('Auth code invalid');
     return false;
 }
+function retrieveAccessToken(profile, authCode) {
+    for (var _i = 0, _a = profile['authGrantCodeList']; _i < _a.length; _i++) {
+        var code = _a[_i];
+        if (code['code'] == authCode) {
+            return code['accessToken'];
+        }
+    }
+    return null;
+}
 /**
- *
+ * Assuming user tries to access resources, this method needs to be called to validate the access token & expiration
  * @param accessToken JWT
  * @returns Boolean
  */
