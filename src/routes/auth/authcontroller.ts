@@ -7,8 +7,13 @@ const router = Router();
 
 
 router.get('/oauth/authorize', authorize, async (req: Request, res: Response) => {
+
+    // profile should not be undefined here
+    if(res.locals.profile == undefined){
+        throw Error;
+    }
     const generatedCode = await generateAuthCodeGrant(res.locals.profile);
-    console.log(generatedCode);
+    console.log("oauth/authorize: generated code is " + generatedCode); // Printing this for demo
     res.redirect(req.query.redirect_uri + '?code=' + generatedCode +'&state=' + req.query.state);
 });
 
@@ -17,6 +22,11 @@ router.post('/oauth/token', authorize, async (req: Request, res: Response) => {
     let accessToken, refreshToken;
 
     console.log('grant type = ' + res.locals.grantType);
+
+    // Grant type or Profile should not be undefined here
+    if(res.locals.grantType == undefined || res.locals.profile == undefined){
+        throw Error;
+    }
     switch(res.locals.grantType){
         case 'authorization_code':
             [accessToken, refreshToken] = await retrieveTokensWithGrant(res.locals.profile, req.body.code);

@@ -112,7 +112,7 @@ function authorize(req, res, next) {
                                 }
                                 break;
                             //other cases such as implicit grant flow
-                            default: console.log('Invalid Response Type');
+                            default: console.error('Authorization: Invalid Response Type');
                         }
                     }
                     if (!(req.method == 'POST')) return [3 /*break*/, 6];
@@ -130,7 +130,6 @@ function authorize(req, res, next) {
                 case 1:
                     if (validateClientAndUri(clientId === null || clientId === void 0 ? void 0 : clientId.toString(), redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString(), res)) {
                         if (validateAuthCode(res.locals.profile, code)) {
-                            console.log('Auth code is valid, sending back token');
                             unauthorized = false;
                             res.locals.grantType = grantType.toString();
                             next();
@@ -140,7 +139,11 @@ function authorize(req, res, next) {
                 case 2:
                     if (!validateClientAndUri(clientId === null || clientId === void 0 ? void 0 : clientId.toString(), redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString(), res)) return [3 /*break*/, 4];
                     console.log('Validating refresh token...');
-                    return [4 /*yield*/, validateRefreshToken(res.locals.profile, refreshToken === null || refreshToken === void 0 ? void 0 : refreshToken.toString())];
+                    refreshToken = refreshToken === null || refreshToken === void 0 ? void 0 : refreshToken.toString();
+                    if (refreshToken.match(/"/)) {
+                        refreshToken = refreshToken.toString().replace(/\"/g, '');
+                    }
+                    return [4 /*yield*/, validateRefreshToken(res.locals.profile, refreshToken)];
                 case 3:
                     if (_b.sent()) {
                         unauthorized = false;
@@ -150,7 +153,7 @@ function authorize(req, res, next) {
                     _b.label = 4;
                 case 4: return [3 /*break*/, 6];
                 case 5:
-                    console.log('Invalid Grant Type');
+                    console.error('Authorization: Invalid Grant Type');
                     _b.label = 6;
                 case 6:
                     if (unauthorized) {
@@ -167,7 +170,7 @@ function authorize(req, res, next) {
  * @returns true if user is authenticated
  */
 function userIsAuthenticated(req) {
-    // Returning default true for this demo, but must be based on real user session authentication
+    // Returning default true for this demo, but must be based on real user session authentication & Identity Providers
     return true;
 }
 /**
@@ -240,7 +243,7 @@ function generateAccessAndRefreshToken(profile, accessTokenPayload, refreshToken
                     return [3 /*break*/, 7];
                 case 6:
                     error_1 = _a.sent();
-                    console.error('Error generating JWT token:', error_1);
+                    console.error('Authorization: Error generating JWT token:', error_1);
                     throw error_1;
                 case 7: return [2 /*return*/, [accessToken, refreshToken]];
             }
@@ -262,11 +265,11 @@ function validateAuthCode(profile, authCode) {
         // Invalidate the code if it is expired
         if (code['code'] == authCode && code['expiration'] < new Date()) {
             profile['authGrantCodeList'] = profile['authGrantCodeList'].filter(function (code) { return code['code'] != authCode; });
-            console.log('Token validity is expired');
+            console.log('Authorization: Authorization Code validity is expired');
             return false;
         }
     }
-    console.log('Auth code invalid');
+    console.log('Authorization: Auth code invalid');
     return false;
 }
 /**
@@ -293,11 +296,14 @@ function validateRefreshToken(profile, refreshToken) {
                     payload = (_e.sent());
                     expTime = ((JSON.parse(JSON.stringify(payload))['payload']['refreshTokenPayload']['exp']));
                     console.log(Number(Date.now()));
+                    console.log(expTime);
+                    console.log(expTime > Number(Date.now()));
                     if (expTime > Number(Date.now())) {
                         for (_i = 0, _d = profile['refreshTokenList']; _i < _d.length; _i++) {
                             token = _d[_i];
+                            console.log(token.toString() == refreshToken);
                             if (token.toString() == refreshToken) {
-                                console.log(['Refresh token is valid!']);
+                                console.log(['Authorization: Refresh token is valid']);
                                 return [2 /*return*/, true];
                             }
                         }
@@ -305,7 +311,7 @@ function validateRefreshToken(profile, refreshToken) {
                     return [3 /*break*/, 4];
                 case 3:
                     error_2 = _e.sent();
-                    console.error('Error validating refresh token:', error_2);
+                    console.error('Authorization: Error validating refresh token:', error_2);
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/, false];
             }
@@ -346,6 +352,10 @@ function retrieveTokensWithGrant(profile, authCode) {
 function validateAccessToken(accessToken) {
     return false;
 }
+/**
+ * Load public key into memory
+ * @returns
+ */
 function loadRSAPublicKey() {
     return __awaiter(this, void 0, void 0, function () {
         var publicPem, error_3;
@@ -367,6 +377,13 @@ function loadRSAPublicKey() {
         });
     });
 }
+/**
+ * Creates a payload to be used with the JWT Token
+ * Some parameters are left blank for the sake of demo
+ * @param profile
+ * @param tokenType
+ * @returns
+ */
 function createJWTPayload(profile, tokenType) {
     var accessTokenExpiry = Date.now() + 1000 * 60 * 60;
     var refreshTokenExpiry = Date.now() + 1000 * 60 * 60 * 24;

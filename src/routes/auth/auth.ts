@@ -18,12 +18,11 @@ import registeredClients from './registeredclients';
  */
 async function authorize(req: Request, res: Response, next: NextFunction): Promise<void>{
 
-    // check request parameters for client_id & redirect_uri & response_type
-    // if response_type = code do the following
-    // check if client_id is valid 
-    // check if redirect_uri is valid
-    // Then generate code JWT token & match it with the redirect_uri
-
+    // Validity Checks 
+    // 1. User is authenticated 
+    // 2. Client ID is a match
+    // 3. Redirect uri is in registered list
+    // 
     let unauthorized: Boolean = true;
 
     if(req.method == 'GET'){
@@ -40,7 +39,7 @@ async function authorize(req: Request, res: Response, next: NextFunction): Promi
             break;
             //other cases such as implicit grant flow
 
-            default: console.log('Invalid Response Type');
+            default: console.error('Authorization: Invalid Response Type');
         }
     }
 
@@ -50,13 +49,12 @@ async function authorize(req: Request, res: Response, next: NextFunction): Promi
         const clientId = req.body.client_id;
         const redirectUri = req.body.redirect_uri;
         const code = req.body.code;
-        const refreshToken = req.body.refresh_token;
+        let refreshToken = req.body.refresh_token;
 
         switch(grantType?.toString()){
             case 'authorization_code':
                 if(validateClientAndUri(clientId?.toString(), redirectUri?.toString(), res)){
                     if(validateAuthCode(res.locals.profile, code)){
-                        console.log('Auth code is valid, sending back token');
                         unauthorized = false;
                         res.locals.grantType = grantType.toString();
                         next();
@@ -67,7 +65,12 @@ async function authorize(req: Request, res: Response, next: NextFunction): Promi
             case 'refresh_token':
                     if(validateClientAndUri(clientId?.toString(), redirectUri?.toString(), res)){
                         console.log('Validating refresh token...');
-                        if(await validateRefreshToken(res.locals.profile, refreshToken?.toString())){
+                        refreshToken = refreshToken?.toString();
+                        if(refreshToken.match(/"/)){
+                            refreshToken = refreshToken.toString().replace(/\"/g, '');
+                        }
+
+                        if(await validateRefreshToken(res.locals.profile, refreshToken)){
                             unauthorized = false;
                             res.locals.grantType = grantType.toString();
                             next();
@@ -75,7 +78,7 @@ async function authorize(req: Request, res: Response, next: NextFunction): Promi
                 }
             break;
             
-            default: console.log('Invalid Grant Type');
+            default: console.error('Authorization: Invalid Grant Type');
         }       
     }
 
@@ -90,7 +93,7 @@ async function authorize(req: Request, res: Response, next: NextFunction): Promi
  * @returns true if user is authenticated
  */
 function userIsAuthenticated(req: Request): Boolean {
-    // Returning default true for this demo, but must be based on real user session authentication
+    // Returning default true for this demo, but must be based on real user session authentication & Identity Providers
     return true;
 }
 
@@ -151,7 +154,7 @@ async function generateAccessAndRefreshToken(profile: AuthProfile, accessTokenPa
         .addRefreshToken(refreshToken);
         
     }catch(error){
-        console.error('Error generating JWT token:', error);
+        console.error('Authorization: Error generating JWT token:', error);
         throw error;
     }
 
@@ -171,11 +174,11 @@ function validateAuthCode(profile: AuthProfile, authCode: string): Boolean {
         // Invalidate the code if it is expired
         if(code['code'] == authCode && code['expiration'] < new Date()){
             profile['authGrantCodeList'] = profile['authGrantCodeList'].filter((code: AuthGrantType) => code['code'] != authCode);
-            console.log('Token validity is expired');
+            console.log('Authorization: Authorization Code validity is expired');
             return false;
         }
     }
-    console.log('Auth code invalid');
+    console.log('Authorization: Auth code invalid');
     return false;
 }
 
@@ -193,16 +196,19 @@ async function validateRefreshToken(profile: AuthProfile, refreshToken: string):
         const payload: jose.JWTVerifyResult<JwtPayload> = (await jose.jwtVerify(refreshToken, await loadRSAPublicKey()));
         const expTime = ((JSON.parse(JSON.stringify(payload))['payload']['refreshTokenPayload']['exp']));
         console.log( Number(Date.now()));
+        console.log(expTime);
+        console.log(expTime > Number(Date.now()));
         if(expTime > Number(Date.now())){
             for(const token of profile['refreshTokenList']){
+                console.log(token.toString() == refreshToken);
                 if(token.toString() == refreshToken){
-                    console.log(['Refresh token is valid!']);
+                    console.log(['Authorization: Refresh token is valid']);
                     return true;
                 }
             }
         }
     }catch(error){
-        console.error('Error validating refresh token:', error);
+        console.error('Authorization: Error validating refresh token:', error);
     }
 
     return false;
@@ -237,6 +243,11 @@ function validateAccessToken(accessToken: jose.SignJWT): Boolean {
     return false;
 }
 
+/**
+ * Load public key into memory
+ * @returns
+ */
+
 async function loadRSAPublicKey(): Promise<jose.KeyLike>{
     try{
         const publicPem = await fs.promises.readFile(pathList.publicKeyPath, 'utf8');
@@ -247,6 +258,14 @@ async function loadRSAPublicKey(): Promise<jose.KeyLike>{
     }
 
 }
+
+/**
+ * Creates a payload to be used with the JWT Token
+ * Some parameters are left blank for the sake of demo
+ * @param profile 
+ * @param tokenType 
+ * @returns 
+ */
 
 function createJWTPayload(profile: AuthProfile, tokenType: Token): JwtPayload{
     

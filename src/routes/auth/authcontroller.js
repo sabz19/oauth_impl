@@ -44,10 +44,15 @@ router.get('/oauth/authorize', auth_1.authorize, function (req, res) { return __
     var generatedCode;
     return __generator(this, function (_a) {
         switch (_a.label) {
-            case 0: return [4 /*yield*/, (0, auth_1.generateAuthCodeGrant)(res.locals.profile)];
+            case 0:
+                // profile should not be undefined here
+                if (res.locals.profile == undefined) {
+                    throw Error;
+                }
+                return [4 /*yield*/, (0, auth_1.generateAuthCodeGrant)(res.locals.profile)];
             case 1:
                 generatedCode = _a.sent();
-                console.log(generatedCode);
+                console.log("oauth/authorize: generated code is " + generatedCode); // Printing this for demo
                 res.redirect(req.query.redirect_uri + '?code=' + generatedCode + '&state=' + req.query.state);
                 return [2 /*return*/];
         }
@@ -60,6 +65,10 @@ router.post('/oauth/token', auth_1.authorize, function (req, res) { return __awa
         switch (_d.label) {
             case 0:
                 console.log('grant type = ' + res.locals.grantType);
+                // Grant type or Profile should not be undefined here
+                if (res.locals.grantType == undefined || res.locals.profile == undefined) {
+                    throw Error;
+                }
                 _a = res.locals.grantType;
                 switch (_a) {
                     case 'authorization_code': return [3 /*break*/, 1];
