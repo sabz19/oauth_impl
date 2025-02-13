@@ -15,3 +15,5 @@ createDummyClients();
 app.listen(port, () =>{
     console.log(`Server is active & listening on PORT ${port}`);
 });
+
+export default app;

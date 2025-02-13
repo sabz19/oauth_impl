@@ -16,3 +16,4 @@ app.use(routes_1.default);
 app.listen(port, function () {
     console.log("Server is active & listening on PORT ".concat(port));
 });
+exports.default = app;

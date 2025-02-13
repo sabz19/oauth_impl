@@ -52,7 +52,8 @@ router.get('/oauth/authorize', auth_1.authorize, function (req, res) { return __
                 return [4 /*yield*/, (0, auth_1.generateAuthCodeGrant)(res.locals.profile)];
             case 1:
                 generatedCode = _a.sent();
-                console.log("oauth/authorize: generated code is " + generatedCode); // Printing this for demo
+                // Printing this for demo purposes
+                console.log("oauth/authorize: generated code is " + generatedCode);
                 res.redirect(req.query.redirect_uri + '?code=' + generatedCode + '&state=' + req.query.state);
                 return [2 /*return*/];
         }
@@ -64,7 +65,6 @@ router.post('/oauth/token', auth_1.authorize, function (req, res) { return __awa
     return __generator(this, function (_d) {
         switch (_d.label) {
             case 0:
-                console.log('grant type = ' + res.locals.grantType);
                 // Grant type or Profile should not be undefined here
                 if (res.locals.grantType == undefined || res.locals.profile == undefined) {
                     throw Error;
@@ -78,8 +78,6 @@ router.post('/oauth/token', auth_1.authorize, function (req, res) { return __awa
             case 1: return [4 /*yield*/, (0, auth_1.retrieveTokensWithGrant)(res.locals.profile, req.body.code)];
             case 2:
                 _b = _d.sent(), accessToken = _b[0], refreshToken = _b[1];
-                console.log(accessToken);
-                console.log(refreshToken);
                 return [3 /*break*/, 5];
             case 3: return [4 /*yield*/, (0, auth_1.generateAccessAndRefreshToken)(res.locals.profile, (0, auth_1.createJWTPayload)(res.locals.profile, authtypes_1.Token.Access), (0, auth_1.createJWTPayload)(res.locals.profile, authtypes_1.Token.Refresh))];
             case 4:

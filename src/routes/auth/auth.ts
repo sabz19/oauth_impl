@@ -29,6 +29,8 @@ async function authorize(req: Request, res: Response, next: NextFunction): Promi
         const responseType = req.query.response_type;
         const clientId = req.query.client_id;
         const redirectUri = req.query.redirect_uri;
+
+        console.log('Get request ' + responseType);
         
         switch(responseType?.toString()){
             case 'code':  
@@ -39,7 +41,7 @@ async function authorize(req: Request, res: Response, next: NextFunction): Promi
             break;
             //other cases such as implicit grant flow
 
-            default: console.error('Authorization: Invalid Response Type');
+            default: console.log('Authorization: Invalid Response Type');
         }
     }
 
@@ -50,6 +52,8 @@ async function authorize(req: Request, res: Response, next: NextFunction): Promi
         const redirectUri = req.body.redirect_uri;
         const code = req.body.code;
         let refreshToken = req.body.refresh_token;
+
+        console.log(grantType?.toString());
 
         switch(grantType?.toString()){
             case 'authorization_code':
@@ -78,7 +82,7 @@ async function authorize(req: Request, res: Response, next: NextFunction): Promi
                 }
             break;
             
-            default: console.error('Authorization: Invalid Grant Type');
+            default: console.log('Authorization: Invalid Grant Type');
         }       
     }
 

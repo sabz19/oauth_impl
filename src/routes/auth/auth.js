@@ -104,6 +104,7 @@ function authorize(req, res, next) {
                         responseType = req.query.response_type;
                         clientId = req.query.client_id;
                         redirectUri = req.query.redirect_uri;
+                        console.log('Get request ' + responseType);
                         switch (responseType === null || responseType === void 0 ? void 0 : responseType.toString()) {
                             case 'code':
                                 if (userIsAuthenticated(req) && validateClientAndUri(clientId === null || clientId === void 0 ? void 0 : clientId.toString(), redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString(), res)) {
@@ -112,7 +113,7 @@ function authorize(req, res, next) {
                                 }
                                 break;
                             //other cases such as implicit grant flow
-                            default: console.error('Authorization: Invalid Response Type');
+                            default: console.log('Authorization: Invalid Response Type');
                         }
                     }
                     if (!(req.method == 'POST')) return [3 /*break*/, 6];
@@ -121,6 +122,7 @@ function authorize(req, res, next) {
                     redirectUri = req.body.redirect_uri;
                     code = req.body.code;
                     refreshToken = req.body.refresh_token;
+                    console.log(grantType === null || grantType === void 0 ? void 0 : grantType.toString());
                     _a = grantType === null || grantType === void 0 ? void 0 : grantType.toString();
                     switch (_a) {
                         case 'authorization_code': return [3 /*break*/, 1];
@@ -153,7 +155,7 @@ function authorize(req, res, next) {
                     _b.label = 4;
                 case 4: return [3 /*break*/, 6];
                 case 5:
-                    console.error('Authorization: Invalid Grant Type');
+                    console.log('Authorization: Invalid Grant Type');
                     _b.label = 6;
                 case 6:
                     if (unauthorized) {
@@ -295,13 +297,9 @@ function validateRefreshToken(profile, refreshToken) {
                 case 2:
                     payload = (_e.sent());
                     expTime = ((JSON.parse(JSON.stringify(payload))['payload']['refreshTokenPayload']['exp']));
-                    console.log(Number(Date.now()));
-                    console.log(expTime);
-                    console.log(expTime > Number(Date.now()));
                     if (expTime > Number(Date.now())) {
                         for (_i = 0, _d = profile['refreshTokenList']; _i < _d.length; _i++) {
                             token = _d[_i];
-                            console.log(token.toString() == refreshToken);
                             if (token.toString() == refreshToken) {
                                 console.log(['Authorization: Refresh token is valid']);
                                 return [2 /*return*/, true];
