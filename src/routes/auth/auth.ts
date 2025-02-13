@@ -30,21 +30,13 @@ async function authorize(req: Request, res: Response, next: NextFunction): Promi
         const responseType = req.query.response_type;
         const clientId = req.query.client_id;
         const redirectUri = req.query.redirect_uri;
-        const state = req.query.state;
         
         switch(responseType?.toString()){
             case 'code':  
-            if(userIsAuthenticated(req)){
-                for(const profile of registeredClients){
-                    if(profile['clientId'] == clientId?.toString() 
-                        && profile['redirectUris']?.includes(redirectUri?.toString())){{
-                            unauthorized = false;
-                            res.locals.profile = profile;
-                            next();
-                        }
-                    }
+                if(userIsAuthenticated(req) && validateClientAndUri(clientId?.toString(), redirectUri?.toString(), res)){
+                    unauthorized = false;
+                    next();
                 }
-            }
             break;
             //other cases such as implicit grant flow
 
@@ -57,40 +49,28 @@ async function authorize(req: Request, res: Response, next: NextFunction): Promi
         const grantType = req.body.grant_type;
         const clientId = req.body.client_id;
         const redirectUri = req.body.redirect_uri;
-        const state = req.body.state;
         const code = req.body.code;
         const refreshToken = req.body.refresh_token;
-        console.log('grant type = ' + grantType);
+
         switch(grantType?.toString()){
             case 'authorization_code':
-                for(const profile of registeredClients){
-                    if(profile['clientId'] == clientId?.toString() 
-                        && profile['redirectUris']?.includes(redirectUri?.toString())){{
-                    console.log('Validating auth code...');
-                            if(validateAuthCode(profile, code)){
-                                console.log('Auth code is valid, sending back token');
-                                unauthorized = false;
-                                res.locals.profile = profile;
-                                res.locals.grantType = grantType.toString();
-                                next();
-                            }
-                        }
+                if(validateClientAndUri(clientId?.toString(), redirectUri?.toString(), res)){
+                    if(validateAuthCode(res.locals.profile, code)){
+                        console.log('Auth code is valid, sending back token');
+                        unauthorized = false;
+                        res.locals.grantType = grantType.toString();
+                        next();
                     }
                 }
             break;
 
             case 'refresh_token':
-                for(const profile of registeredClients){
-                    if(profile['clientId'] == clientId?.toString() 
-                        && profile['redirectUris']?.includes(redirectUri?.toString())){{
-                            console.log('Validating refresh token...');
-                            if(await validateRefreshToken(profile, refreshToken?.toString())){
-                                unauthorized = false;
-                                res.locals.grantType = grantType.toString();
-                                res.locals.profile = profile;
-                                next();
-                            }
-                        }
+                    if(validateClientAndUri(clientId?.toString(), redirectUri?.toString(), res)){
+                        console.log('Validating refresh token...');
+                        if(await validateRefreshToken(res.locals.profile, refreshToken?.toString())){
+                            unauthorized = false;
+                            res.locals.grantType = grantType.toString();
+                            next();
                     }
                 }
             break;
@@ -98,7 +78,6 @@ async function authorize(req: Request, res: Response, next: NextFunction): Promi
             default: console.log('Invalid Grant Type');
         }       
     }
-
 
     if(unauthorized){
         res.status(401).send('Unauthorized');
@@ -227,6 +206,16 @@ async function validateRefreshToken(profile: AuthProfile, refreshToken: string):
     }
 
     return false;
+}
+
+function validateClientAndUri(clientId: string, redirectUri: string, res: Response): Boolean {
+    for(const profile of registeredClients){
+        if(profile['clientId'] == clientId?.toString() 
+            && profile['redirectUris']?.includes(redirectUri?.toString())){
+            res.locals.profile = profile;
+            return true;
+        }
+    }
 }
 
 async function retrieveTokensWithGrant(profile: AuthProfile, authCode: string): Promise<[jose.SignJWT, jose.SignJWT] | null> {

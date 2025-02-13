@@ -95,95 +95,64 @@ var registeredclients_1 = __importDefault(require("./registeredclients"));
  */
 function authorize(req, res, next) {
     return __awaiter(this, void 0, void 0, function () {
-        var unauthorized, responseType, clientId, redirectUri, state, _i, registeredClients_1, profile, grantType, clientId, redirectUri, state, code, refreshToken, _a, _b, registeredClients_2, profile, _c, registeredClients_3, profile;
-        var _d, _e, _f;
-        return __generator(this, function (_g) {
-            switch (_g.label) {
+        var unauthorized, responseType, clientId, redirectUri, grantType, clientId, redirectUri, code, refreshToken, _a;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
                 case 0:
                     unauthorized = true;
                     if (req.method == 'GET') {
                         responseType = req.query.response_type;
                         clientId = req.query.client_id;
                         redirectUri = req.query.redirect_uri;
-                        state = req.query.state;
                         switch (responseType === null || responseType === void 0 ? void 0 : responseType.toString()) {
                             case 'code':
-                                if (userIsAuthenticated(req)) {
-                                    for (_i = 0, registeredClients_1 = registeredclients_1.default; _i < registeredClients_1.length; _i++) {
-                                        profile = registeredClients_1[_i];
-                                        if (profile['clientId'] == (clientId === null || clientId === void 0 ? void 0 : clientId.toString())
-                                            && ((_d = profile['redirectUris']) === null || _d === void 0 ? void 0 : _d.includes(redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString()))) {
-                                            {
-                                                unauthorized = false;
-                                                res.locals.profile = profile;
-                                                next();
-                                            }
-                                        }
-                                    }
+                                if (userIsAuthenticated(req) && validateClientAndUri(clientId === null || clientId === void 0 ? void 0 : clientId.toString(), redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString(), res)) {
+                                    unauthorized = false;
+                                    next();
                                 }
                                 break;
                             //other cases such as implicit grant flow
                             default: console.log('Invalid Response Type');
                         }
                     }
-                    if (!(req.method == 'POST')) return [3 /*break*/, 8];
+                    if (!(req.method == 'POST')) return [3 /*break*/, 6];
                     grantType = req.body.grant_type;
                     clientId = req.body.client_id;
                     redirectUri = req.body.redirect_uri;
-                    state = req.body.state;
                     code = req.body.code;
                     refreshToken = req.body.refresh_token;
-                    console.log('grant type = ' + grantType);
                     _a = grantType === null || grantType === void 0 ? void 0 : grantType.toString();
                     switch (_a) {
                         case 'authorization_code': return [3 /*break*/, 1];
                         case 'refresh_token': return [3 /*break*/, 2];
                     }
-                    return [3 /*break*/, 7];
+                    return [3 /*break*/, 5];
                 case 1:
-                    for (_b = 0, registeredClients_2 = registeredclients_1.default; _b < registeredClients_2.length; _b++) {
-                        profile = registeredClients_2[_b];
-                        if (profile['clientId'] == (clientId === null || clientId === void 0 ? void 0 : clientId.toString())
-                            && ((_e = profile['redirectUris']) === null || _e === void 0 ? void 0 : _e.includes(redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString()))) {
-                            {
-                                console.log('Validating auth code...');
-                                if (validateAuthCode(profile, code)) {
-                                    console.log('Auth code is valid, sending back token');
-                                    unauthorized = false;
-                                    res.locals.profile = profile;
-                                    res.locals.grantType = grantType.toString();
-                                    next();
-                                }
-                            }
+                    if (validateClientAndUri(clientId === null || clientId === void 0 ? void 0 : clientId.toString(), redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString(), res)) {
+                        if (validateAuthCode(res.locals.profile, code)) {
+                            console.log('Auth code is valid, sending back token');
+                            unauthorized = false;
+                            res.locals.grantType = grantType.toString();
+                            next();
                         }
                     }
-                    return [3 /*break*/, 8];
+                    return [3 /*break*/, 6];
                 case 2:
-                    _c = 0, registeredClients_3 = registeredclients_1.default;
-                    _g.label = 3;
-                case 3:
-                    if (!(_c < registeredClients_3.length)) return [3 /*break*/, 6];
-                    profile = registeredClients_3[_c];
-                    if (!(profile['clientId'] == (clientId === null || clientId === void 0 ? void 0 : clientId.toString())
-                        && ((_f = profile['redirectUris']) === null || _f === void 0 ? void 0 : _f.includes(redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString())))) return [3 /*break*/, 5];
+                    if (!validateClientAndUri(clientId === null || clientId === void 0 ? void 0 : clientId.toString(), redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString(), res)) return [3 /*break*/, 4];
                     console.log('Validating refresh token...');
-                    return [4 /*yield*/, validateRefreshToken(profile, refreshToken === null || refreshToken === void 0 ? void 0 : refreshToken.toString())];
-                case 4:
-                    if (_g.sent()) {
+                    return [4 /*yield*/, validateRefreshToken(res.locals.profile, refreshToken === null || refreshToken === void 0 ? void 0 : refreshToken.toString())];
+                case 3:
+                    if (_b.sent()) {
                         unauthorized = false;
                         res.locals.grantType = grantType.toString();
-                        res.locals.profile = profile;
                         next();
                     }
-                    _g.label = 5;
+                    _b.label = 4;
+                case 4: return [3 /*break*/, 6];
                 case 5:
-                    _c++;
-                    return [3 /*break*/, 3];
-                case 6: return [3 /*break*/, 8];
-                case 7:
                     console.log('Invalid Grant Type');
-                    _g.label = 8;
-                case 8:
+                    _b.label = 6;
+                case 6:
                     if (unauthorized) {
                         res.status(401).send('Unauthorized');
                     }
@@ -342,6 +311,17 @@ function validateRefreshToken(profile, refreshToken) {
             }
         });
     });
+}
+function validateClientAndUri(clientId, redirectUri, res) {
+    var _a;
+    for (var _i = 0, registeredClients_1 = registeredclients_1.default; _i < registeredClients_1.length; _i++) {
+        var profile = registeredClients_1[_i];
+        if (profile['clientId'] == (clientId === null || clientId === void 0 ? void 0 : clientId.toString())
+            && ((_a = profile['redirectUris']) === null || _a === void 0 ? void 0 : _a.includes(redirectUri === null || redirectUri === void 0 ? void 0 : redirectUri.toString()))) {
+            res.locals.profile = profile;
+            return true;
+        }
+    }
 }
 function retrieveTokensWithGrant(profile, authCode) {
     return __awaiter(this, void 0, void 0, function () {
