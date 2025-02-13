@@ -195,12 +195,8 @@ async function validateRefreshToken(profile: AuthProfile, refreshToken: string):
     try{
         const payload: jose.JWTVerifyResult<JwtPayload> = (await jose.jwtVerify(refreshToken, await loadRSAPublicKey()));
         const expTime = ((JSON.parse(JSON.stringify(payload))['payload']['refreshTokenPayload']['exp']));
-        console.log( Number(Date.now()));
-        console.log(expTime);
-        console.log(expTime > Number(Date.now()));
         if(expTime > Number(Date.now())){
             for(const token of profile['refreshTokenList']){
-                console.log(token.toString() == refreshToken);
                 if(token.toString() == refreshToken){
                     console.log(['Authorization: Refresh token is valid']);
                     return true;
