@@ -9,10 +9,11 @@
 
 ## Assumptions For Demo Purposes
 
-1. There is no Database used or cache servers like Redis / Memcached for sensitive data, all generated JWT tokens are temporarily stored in RAM by variables in code
-2. RSA Algorithm is used for generating keys. Private keys are uploaded in this repo and used by the server to sign and encrypt tokens. These ideally need to be stored in a secure container
-3. Implicit assumption that login has already occurred, so at the time of generating an auth code, an auth check is performed which by default always returns true
-4. Since some RFC specifications are open-ended, some additional checks have been implemented such as checking for a registered list of uris to prevent CSRF
+1. There is no Database used or cache servers like Redis / Memcached for sensitive data, all generated JWT tokens are temporarily stored in RAM by variables in code.
+2. The PEM files are read for every request to generate an access token and not loaded into memory, this is for purposes of the demo
+3. RSA Algorithm is used for generating keys. Private keys are uploaded in this repo and used by the server to sign and encrypt tokens. These ideally need to be stored in a secure container
+4. Implicit assumption that login has already occurred, so at the time of generating an auth code, an auth check is performed which by default always returns true
+5. Since some RFC specifications are open-ended, some additional checks have been implemented such as checking for a registered list of uris to prevent CSRF
 
 
 ## Dependencies
